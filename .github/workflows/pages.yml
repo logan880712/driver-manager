@@ -22,7 +22,9 @@ jobs:
       - name: Prepare static files
         run: |
           mkdir public
-          cp index.html app.js style.css sw.js manifest.webmanifest icon.svg icon-192.png icon-512.png public/
+          cp index.html app.js photo-parser.js photo-ocr.js style.css sw.js manifest.webmanifest icon.svg icon-192.png icon-512.png public/
+          cp -R vendor public/
+          cp .nojekyll public/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public

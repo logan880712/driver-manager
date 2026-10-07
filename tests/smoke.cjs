@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
  const values={date:'2026-10-06',start:'19:42',end:'01:45',endDate:'2026-10-07',count:'5',income:'123200',tips:'20000',transport:'18000',expense:'0',memo:'군포역 귀가'};
  for(const [key,value]of Object.entries(values)){if(key==='endDate')continue;await page.locator(`#diary-form [name=${key}]`).fill(value);}
  assert.equal(await page.locator('#end-date').inputValue(),'2026-10-07','overnight date automatically advances');
- await page.locator('#photos').setInputFiles('icon-192.png');
+ await page.locator('#photos').setInputFiles('icon-192.png');await page.waitForFunction(()=>!window.PhotoImport.busy,{},{timeout:60000});
  assert.equal(await page.locator('#diary-preview').textContent(),'순수익 125,200원');
  await page.locator('#diary-form [type=submit]').click();await page.waitForFunction(()=>state.diaries.length===1);
  assert.equal(await page.evaluate(()=>diaryNet(state.diaries[0])),125200);

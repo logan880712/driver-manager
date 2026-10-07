@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const {parse,deduplicate}=require('../photo-parser.js');
+const detailed=`운행번호\n43874700\n운행일자 2026.10.7 (수) 00:59 ~ 01:45\n실수익 24,000P\n고객에게 받은 현금은 30,000원 입니다`;
+const first=parse(detailed,0);assert.equal(first.records.length,1);assert.equal(first.records[0].amount,24000);assert.equal(first.records[0].rideId,'43874700');assert.equal(first.records[0].start,'00:59');assert.equal(first.records[0].date,'2026-10-07');
+const list=parse('대리\n운행시간 23:46 ~ 00:24\n총 수입 28,800원\n대리\n운행시간 20:58 ~ 21:38\n총 수입 30,400원',1);assert.deepEqual(list.records.map(r=>r.amount),[28800,30400]);
+assert.equal(parse('실 수 익\n16,000P').records[0].amount,16000);
+assert.equal(parse('실수익 _24,0002').records[0].amount,24000);assert.ok(parse('실수익 _24,0002').warnings.some(w=>w.includes('단위')));
+assert.equal(parse('고객에게 받은 현금은 30,000원 입니다\n운행번호 43874700').records.length,0);
+assert.equal(parse('실수익\n고객에게 받은 현금은 30,000원 입니다').records.length,0);
+assert.equal(parse('총 수입 abc').warnings.length,1);assert.equal(parse('총 수입 0원').records.length,0);
+assert.equal(parse('총 수입 123200원').records[0].amount,123200);
+const duplicates=deduplicate([...first.records,...list.records,...parse(detailed,2).records]);assert.equal(duplicates.filter(r=>r.selected).length,3);assert.equal(duplicates[3].duplicate,true);
+const overlap=deduplicate([first.records[0],{...first.records[0],rideId:''}]);assert.equal(overlap[1].duplicate,true);
+const distinct=deduplicate([{amount:24000,start:'00:59',end:'01:45'},{amount:24000,start:'02:00',end:'02:40'}]);assert.equal(distinct.filter(r=>r.selected).length,2);
+assert.equal(parse('운행시간 20:58 ~ 21:38\n종 수입 30,400원').records[0].amount,30400);
+console.log('PASS: 상세/목록/줄바꿈 금액, 단위 오인 경고, 현금 제외, 실패 항목 방어, 중복 후보, 다른 운행 구분');
