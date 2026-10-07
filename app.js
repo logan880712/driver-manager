@@ -115,6 +115,9 @@ $('history-filter-clear').onclick=()=>{historyDateFilter='';renderHistory();};
 function renderHistory(){
   const month=$('history-month').value, items=records().filter(r=>r.date.startsWith(month));
   renderCalendar(month,items);
+  window.IncomeCharts?.render($('income-charts'),{month,records:items,monthlyGoal:state.goals.monthly,selectedDate:historyDateFilter,onSelectDate:date=>{historyDateFilter=historyDateFilter===date?'':date;renderHistory();}});
+  $('history-date-action').hidden=!historyDateFilter;
+  $('history-date-action').textContent=state.diaries.some(d=>d.date===historyDateFilter)?'선택한 날짜 일지 수정':'선택한 날짜 일지 쓰기';
   $('history-summary').textContent=`${new Set(items.map(r=>r.date)).size}일 · ${items.reduce((n,r)=>n+r.count,0)}건 · 순수익 ${money(total(items))}`;
   $('history').replaceChildren();
   const filtered=historyDateFilter?items.filter(r=>r.date===historyDateFilter):items;
@@ -125,38 +128,59 @@ function renderHistory(){
     const d=rows[0].diary;
     if(d){const minutes=duration(d);card.append(textElement('p',`${d.start} 출근 → ${d.endDate===d.date?'당일':'다음 날'} ${d.end} 귀가 · ${Math.floor(minutes/60)}시간 ${minutes%60}분 · 시간당 ${money(diaryNet(d)/(minutes/60))}`));card.append(textElement('p',`운행 수익 ${money(d.income)} + 팁 ${money(d.tips)} − 교통비 ${money(d.transport)} − 기타 지출 ${money(d.expense)}`));if(d.memo)card.append(textElement('p',d.memo));
       if(d.photos.length){const photos=document.createElement('div');photos.className='photo-preview';showPhotos(photos,d.photos);card.append(photos);}
-      const actions=document.createElement('div');actions.className='history-actions';const edit=textElement('button','수정','secondary');edit.onclick=()=>{loadDiary(d);view('diary');};const remove=textElement('button','삭제','delete');remove.onclick=async()=>{if(confirm('하루 일지를 삭제할까요? 같은 날짜의 기존 개별 운행이 있다면 다시 합산됩니다.')){if(await save({...state,diaries:state.diaries.filter(x=>x.date!==date)}))notify('일지를 삭제했습니다.');}};actions.append(edit,remove);card.append(actions);
+      const actions=document.createElement('div');actions.className='history-actions';const edit=textElement('button','수정','secondary');edit.onclick=()=>openDiaryForDate(d.date);const remove=textElement('button','삭제','delete');remove.onclick=async()=>{if(confirm('하루 일지를 삭제할까요? 같은 날짜의 기존 개별 운행이 있다면 다시 합산됩니다.')){if(await save({...state,diaries:state.diaries.filter(x=>x.date!==date)}))notify('일지를 삭제했습니다.');}};actions.append(edit,remove);card.append(actions);
     }else{card.append(textElement('p','이전 버전에서 저장한 개별 운행입니다. 하루 일지를 작성하면 해당 날짜의 합계로 대체됩니다.'));for(const r of rows)card.append(textElement('p',`${r.ride.from} → ${r.ride.to} · ${money(r.net)}`));}
     $('history').append(card);
   }
 }
 const diaryForm=$('diary-form');
-let manualEndDate=false;
+let manualEndDate=false,dateExplicit=false,activeDiaryDate=workDate(),loadedDiaryDate='';
 function nextDate(date){const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);}
+function previousDate(date){const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()-1);return d.toISOString().slice(0,10);}
+function hasDiaryContent(){return ['start','end','memo'].some(k=>diaryForm.elements.namedItem(k).value)||['count','income','tips','transport','expense'].some(k=>Number(diaryForm.elements.namedItem(k).value))||!!selectedPhotos?.length||diaryForm.elements.fatigue.value!=='1'||manualEndDate;}
+function hasUnstoredContent(){const saved=state.diaries.find(d=>d.date===activeDiaryDate);return hasDiaryContent()&&(!saved||draftFields.filter(k=>k!=='date').some(k=>diaryForm.elements.namedItem(k).value!==String(saved[k]))||(selectedPhotos!==null&&JSON.stringify(selectedPhotos)!==JSON.stringify(saved.photos)));}
+function chooseWorkDate(){
+  const date=$('diary-date').value;if(!validDate(date))return;
+  const saved=state.diaries.find(d=>d.date===date);
+  if(saved&&hasUnstoredContent()&&!confirm('이 날짜에 저장된 일지가 있습니다. 작성 중인 내용 대신 저장된 일지를 불러올까요?')){$('diary-date').value=activeDiaryDate;updatePreview();queueDraft();return;}
+  dateExplicit=true;activeDiaryDate=date;
+  if(saved)loadDiary(saved);else{manualEndDate=false;$('end-date').value=date;inferEndDate();updatePreview();}
+  queueDraft();
+}
+function openDiaryForDate(date){
+  if(!validDate(date))return;
+  if(hasUnstoredContent()&&!confirm('작성 중인 내용을 비우고 선택한 날짜의 일지를 열까요? 저장된 일지는 유지됩니다.'))return;
+  const saved=state.diaries.find(d=>d.date===date);
+  if(saved)loadDiary(saved);else{resetDiary();$('diary-date').value=date;$('end-date').value=date;activeDiaryDate=date;dateExplicit=true;updatePreview();}
+  queueDraft();view('diary');
+}
+$('history-date-action').onclick=()=>openDiaryForDate(historyDateFilter);
+$('history-add').onclick=()=>{view('diary');$('diary-date').focus();notify('근무를 시작한 날짜를 먼저 선택해 주세요. 지난달 일지도 입력할 수 있어요.');};
+for(const button of document.querySelectorAll('[data-work-date]'))button.onclick=()=>{$('diary-date').value=button.dataset.workDate==='previous'?previousDate(workDate()):workDate();chooseWorkDate();};
 function inferEndDate(){const date=$('diary-date').value,start=diaryForm.elements.start.value,end=diaryForm.elements.end.value;if(!manualEndDate && validDate(date) && validTime(start) && validTime(end)){$('end-date').value=end<start?nextDate(date):date;$('date-hint').textContent=end<start?'새벽 귀가로 귀가 날짜를 다음 날로 맞췄습니다.':'당일 귀가로 계산합니다.';}}
 for(const name of ['start','end'])diaryForm.elements.namedItem(name).addEventListener('input',inferEndDate);
 $('end-date').addEventListener('input',()=>{manualEndDate=true;$('date-hint').textContent='선택한 귀가 날짜로 계산합니다.';});
-function resetDiary(discardDraft=true){if(discardDraft)clearDraft();selectedPhotos=null;window.PhotoImport?.clear();manualEndDate=false;$('date-hint').textContent='새벽 귀가는 시간을 입력하면 다음 날로 자동 계산합니다.';diaryForm.reset();$('diary-date').value=workDate();$('end-date').value=today();$('photos').value='';showPhotos($('photo-preview'),[]);updatePreview();}
-function loadDiary(d){clearTimeout(draftTimer);selectedPhotos=d.photos;window.PhotoImport?.clear();manualEndDate=true;$('date-hint').textContent='저장된 귀가 날짜입니다.';for(const [key,value]of Object.entries(d)){const input=diaryForm.elements.namedItem(key);if(input && input.type!=='file')input.value=value;}$('photos').value='';showPhotos($('photo-preview'),d.photos);updatePreview();}
-function updatePreview(){const v=Object.fromEntries(new FormData(diaryForm));if($('shift-date-label'))$('shift-date-label').textContent=validDate(v.date)?`근무일 ${Number(v.date.slice(5,7))}월 ${Number(v.date.slice(8))}일`:'근무 날짜를 선택해 주세요';$('diary-preview').textContent=money(Number(v.income||0)+Number(v.tips||0)-Number(v.transport||0)-Number(v.expense||0));}
+function resetDiary(discardDraft=true){if(discardDraft)clearDraft();selectedPhotos=null;window.PhotoImport?.clear();manualEndDate=false;dateExplicit=false;loadedDiaryDate='';activeDiaryDate=workDate();$('date-hint').textContent='새벽 귀가는 시간을 입력하면 다음 날로 자동 계산합니다.';diaryForm.reset();$('diary-date').value=activeDiaryDate;$('end-date').value=today();$('photos').value='';showPhotos($('photo-preview'),[]);updatePreview();}
+function loadDiary(d){clearDraft();selectedPhotos=d.photos;window.PhotoImport?.clear();manualEndDate=true;dateExplicit=true;activeDiaryDate=d.date;loadedDiaryDate=d.date;$('date-hint').textContent='저장된 귀가 날짜입니다.';for(const [key,value]of Object.entries(d)){const input=diaryForm.elements.namedItem(key);if(input && input.type!=='file')input.value=value;}$('photos').value='';showPhotos($('photo-preview'),d.photos);updatePreview();queueDraft();}
+function updatePreview(){const v=Object.fromEntries(new FormData(diaryForm));if($('shift-date-label'))$('shift-date-label').textContent=validDate(v.date)?`근무일 ${Number(v.date.slice(5,7))}월 ${Number(v.date.slice(8))}일`:'근무 날짜를 선택해 주세요';const saved=state.diaries.some(d=>d.date===v.date);$('work-date-status').textContent=saved?'저장된 날짜예요. 저장하면 이 날짜의 일지를 수정합니다.':v.date<workDate()?'지난 근무를 기록해요. 선택한 날짜의 월 수익에 반영됩니다.':'저녁에 시작한 날짜를 선택하세요. 새벽 6시 전에는 전날이 기본이에요.';$('diary-preview').textContent=money(Number(v.income||0)+Number(v.tips||0)-Number(v.transport||0)-Number(v.expense||0));}
 diaryForm.addEventListener('input',()=>{updatePreview();queueDraft();});
-$('diary-date').addEventListener('change',()=>{const d=state.diaries.find(d=>d.date===$('diary-date').value);if(d)loadDiary(d);else{manualEndDate=false;$('end-date').value=$('diary-date').value;inferEndDate();}});
+$('diary-date').addEventListener('change',chooseWorkDate);
 $('reset-diary').onclick=()=>resetDiary();
 async function readPhotos(files){if(files.length>5)throw Error('사진은 최대 5장까지 첨부할 수 있습니다.');return Promise.all([...files].map(file=>{if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024)throw Error('사진은 JPG·PNG·WebP, 장당 5MB 이하로 선택하세요.');return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,data:reader.result});reader.onerror=()=>reject(Error('사진을 읽지 못했습니다.'));reader.readAsDataURL(file);});}));}
 $('photos').addEventListener('change',async()=>{try{selectedPhotos=await readPhotos($('photos').files);showPhotos($('photo-preview'),selectedPhotos);queueDraft();}catch(e){$('photos').value='';notify(e.message);}});
-diaryForm.addEventListener('submit',async event=>{event.preventDefault();if(window.PhotoImport?.busy){notify('사진 인식 중입니다. 완료를 기다리거나 인식 중단을 눌러 직접 입력해 주세요.');return;}inferEndDate();const values=Object.fromEntries(new FormData(diaryForm));const old=state.diaries.find(d=>d.date===values.date);try{const photos=selectedPhotos??old?.photos??[];const d={...values,photos};for(const key of ['count','income','tips','transport','expense'])d[key]=Number(d[key]);const issue=diaryError(d);if(issue){notify(issue.message,'error');const input=diaryForm.elements.namedItem(issue.field);input?.focus();input?.scrollIntoView({block:'center',behavior:'smooth'});return;}if(await save({...state,diaries:[...state.diaries.filter(x=>x.date!==d.date),d]})){resetDiary();notify('하루 일지를 저장했습니다. 목표 피드백을 확인해 보세요.');view('home');}}catch(e){notify(e.message);}});
+diaryForm.addEventListener('submit',async event=>{event.preventDefault();if(window.PhotoImport?.busy){notify('사진 인식 중입니다. 완료를 기다리거나 인식 중단을 눌러 직접 입력해 주세요.');return;}inferEndDate();const values=Object.fromEntries(new FormData(diaryForm));const old=state.diaries.find(d=>d.date===values.date);try{const photos=selectedPhotos??old?.photos??[];const d={...values,photos};for(const key of ['count','income','tips','transport','expense'])d[key]=Number(d[key]);const issue=diaryError(d);if(issue){notify(issue.message,'error');const input=diaryForm.elements.namedItem(issue.field);input?.focus();input?.scrollIntoView({block:'center',behavior:'smooth'});return;}if(old&&loadedDiaryDate!==d.date&&!confirm('선택한 날짜에 이미 일지가 있습니다. 입력한 내용으로 이 날짜의 일지를 수정할까요?'))return;if(await save({...state,diaries:[...state.diaries.filter(x=>x.date!==d.date),d]})){const past=d.date<workDate();resetDiary();notify(`${Number(d.date.slice(5,7))}월 ${Number(d.date.slice(8))}일 일지를 저장했습니다.`);if(past){$('history-month').value=d.date.slice(0,7);historyDateFilter=d.date;renderHistory();view('history');}else view('home');}}catch(e){notify(e.message);}});
 $('history-month').value=workDate().slice(0,7);$('history-month').onchange=()=>{historyDateFilter='';renderHistory();};
 $('goal-form').onsubmit=async event=>{event.preventDefault();const dates=id=>$(id).value.split(',').map(v=>v.trim()).filter(Boolean);const skipDates=dates('skip-dates'),extraDates=dates('extra-dates');if(![...skipDates,...extraDates].every(validDate)){notify('날짜는 2026-10-13 같은 형식으로 쉼표로 구분해 주세요.');return;}if(await save({...state,goals:{daily:Number($('daily-goal').value),monthly:Number($('monthly-goal').value)},workdays:[...document.querySelectorAll('[name=workday]:checked')].map(i=>Number(i.value)),home:$('home-location').value.trim(),deadline:$('deadline').value,skipDates,extraDates}))notify('목표와 근무 계획을 저장했습니다.');};
 $('export').onclick=()=>{if(!ready){notify('저장소를 먼저 확인해 주세요.');return;}const url=URL.createObjectURL(new Blob([JSON.stringify(state)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download=`대리일지-${today()}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('사진을 포함한 백업 파일을 내려받았습니다. 안전한 곳에 보관하세요.');};
 $('import').onchange=async event=>{const file=event.target.files[0];if(!file)return;try{if(file.size>100*1024*1024)throw Error('백업 파일은 100MB 이하만 지원합니다.');const data=migrate(JSON.parse(await file.text()));if(confirm('현재 기록·사진·설정을 백업 내용으로 교체할까요? 먼저 현재 기록을 백업해 주세요.')){if(await save(data)){resetDiary();notify('백업을 복원했습니다.');}}}catch(e){notify('백업을 읽지 못했습니다. 올바른 파일과 용량을 확인해 주세요. 기존 기록은 유지됩니다.');}finally{event.target.value='';}};
 const draftFields=['date','start','end','endDate','count','income','tips','transport','expense','fatigue','memo'];
 function clearDraft(){draftDirty=false;clearTimeout(draftTimer);draftTimer=undefined;draftGeneration++;try{localStorage.removeItem('driver-diary-draft-v1');}catch{}if(db&&ready){const tx=db.transaction('data','readwrite');tx.objectStore('data').delete('draft');}$('draft-status').textContent='작성 중인 내용은 이 기기에 임시 보관됩니다.';}
-function queueDraft(){draftDirty=true;clearTimeout(draftTimer);const generation=draftGeneration;try{localStorage.setItem('driver-diary-draft-v1',JSON.stringify({version:1,values:Object.fromEntries(draftFields.map(k=>[k,diaryForm.elements.namedItem(k).value])),manualEndDate,updatedAt:Date.now()}));}catch{}$('draft-status').textContent='임시 보관 중…';draftTimer=setTimeout(()=>writeDraft(generation),600);}
+function queueDraft(){draftDirty=true;clearTimeout(draftTimer);const generation=draftGeneration;try{localStorage.setItem('driver-diary-draft-v1',JSON.stringify({version:1,values:Object.fromEntries(draftFields.map(k=>[k,diaryForm.elements.namedItem(k).value])),manualEndDate,dateExplicit,updatedAt:Date.now()}));}catch{}$('draft-status').textContent='임시 보관 중…';draftTimer=setTimeout(()=>writeDraft(generation),600);}
 function writeDraft(generation){
   if(!ready||generation!==draftGeneration)return Promise.resolve(false);
   const values=Object.fromEntries(draftFields.map(k=>[k,diaryForm.elements.namedItem(k).value]));
   const photos=selectedPhotos??state.diaries.find(d=>d.date===values.date)?.photos??[];
-  return new Promise(resolve=>{try{const tx=db.transaction('data','readwrite');tx.objectStore('data').put({version:1,values,photos,manualEndDate,updatedAt:Date.now()},'draft');tx.oncomplete=()=>{if(generation===draftGeneration)$('draft-status').textContent='작성 내용 임시 보관됨 · 정식 저장은 아래 버튼';resolve(true);};tx.onerror=tx.onabort=()=>{$('draft-status').textContent='임시 보관에 실패했습니다. 일지 저장을 눌러 주세요.';resolve(false);};}catch{$('draft-status').textContent='임시 보관에 실패했습니다. 일지 저장을 눌러 주세요.';resolve(false);}});
+  return new Promise(resolve=>{try{const tx=db.transaction('data','readwrite');tx.objectStore('data').put({version:1,values,photos,manualEndDate,dateExplicit,updatedAt:Date.now()},'draft');tx.oncomplete=()=>{if(generation===draftGeneration)$('draft-status').textContent='작성 내용 임시 보관됨 · 정식 저장은 아래 버튼';resolve(true);};tx.onerror=tx.onabort=()=>{$('draft-status').textContent='임시 보관에 실패했습니다. 일지 저장을 눌러 주세요.';resolve(false);};}catch{$('draft-status').textContent='임시 보관에 실패했습니다. 일지 저장을 눌러 주세요.';resolve(false);}});
 }
 async function restoreDraft(){
   const draft=await new Promise((resolve,reject)=>{const request=db.transaction('data','readonly').objectStore('data').get('draft');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
@@ -167,8 +191,8 @@ async function restoreDraft(){
   for(const k of draftFields)diaryForm.elements.namedItem(k).value=source.values[k];
   const photos=Array.isArray(draft?.photos)&&draft.photos.length<=5?draft.photos:[];
   selectedPhotos=photos.filter(p=>p&&typeof p.name==='string'&&p.name.length<=255&&typeof p.data==='string'&&p.data.length<=7100000&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(p.data));
-  if(!source.values.count&&!source.values.income&&!source.values.start&&!source.values.end&&!source.values.memo&&!selectedPhotos.length&&['tips','transport','expense'].every(k=>!Number(source.values[k]))&&source.values.fatigue==='1'){$('diary-date').value=workDate();$('end-date').value=today();}
-  manualEndDate=!!source.manualEndDate;showPhotos($('photo-preview'),selectedPhotos);updatePreview();$('draft-status').textContent='이전에 작성하던 내용을 복원했어요.';
+  if(!source.dateExplicit&&!source.values.count&&!source.values.income&&!source.values.start&&!source.values.end&&!source.values.memo&&!selectedPhotos.length&&['tips','transport','expense'].every(k=>!Number(source.values[k]))&&source.values.fatigue==='1'){$('diary-date').value=workDate();$('end-date').value=today();}
+  manualEndDate=!!source.manualEndDate;dateExplicit=!!source.dateExplicit;activeDiaryDate=$('diary-date').value;showPhotos($('photo-preview'),selectedPhotos);updatePreview();$('draft-status').textContent='이전에 작성하던 내용을 복원했어요.';
 }
 $('remove-photos').onclick=()=>{window.PhotoImport?.clear();selectedPhotos=[];$('photos').value='';showPhotos($('photo-preview'),[]);queueDraft();};
 $('ocr-retry').onclick=()=>window.PhotoImport?.scan(selectedPhotos??state.diaries.find(d=>d.date===$('diary-date').value)?.photos??[]);

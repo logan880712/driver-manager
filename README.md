@@ -25,17 +25,11 @@ python3 -m http.server 8001 --bind 0.0.0.0
 
 ## 휴대폰용 HTTPS 배포
 
-정적 파일 호스팅으로 배포하면 됩니다. 배포 파일은 `index.html`, `app.js`, `photo-parser.js`, `photo-ocr.js`, `style.css`, `sw.js`, `manifest.webmanifest`, `icon.svg`, `icon-192.png`, `icon-512.png`, `.nojekyll` 및 `vendor/` 폴더입니다. 별도 빌드나 서버 API, API 키는 필요 없습니다.
+정적 파일 호스팅으로 배포하면 됩니다. 배포 파일은 `index.html`, `app.js`, `photo-parser.js`, `photo-ocr.js`, `income-charts.js`, `charts.css`, `style.css`, `sw.js`, `manifest.webmanifest`, `icon.svg`, `icon-192.png`, `icon-512.png`, `.nojekyll` 및 `vendor/` 폴더입니다. 별도 빌드나 서버 API, API 키는 필요 없습니다.
 
-GitHub Pages용 `.github/workflows/pages.yml`을 제공합니다. 실제 배포하려면 다음 순서로 진행합니다.
+현재 휴대폰용 주소는 https://logan880712.github.io/driver-manager/ 입니다. 사용자 설정의 GitHub Pages는 `codex/driver-diary-app` 브랜치의 루트에서 배포하므로 이 브랜치에 변경을 올립니다. 원격 반영 후 Pages 배포 완료 여부는 GitHub Actions/Settings → Pages에서 확인합니다. 클라우드 환경의 GitHub Pages API/웹 요청은 제한되어 있으므로 이 환경에서는 공개 배포의 완료와 아이폰 실기기 동작을 직접 확인할 수 없습니다.
 
-1. 변경 파일을 `logan880712/driver-manager` 저장소의 main 브랜치에 올립니다.
-2. 저장소 Settings → Pages → Source에서 **GitHub Actions**를 선택합니다. 저장소 공개 여부와 요금제에 따라 Pages 이용 가능 여부가 달라질 수 있습니다.
-3. Actions에서 **Publish diary to GitHub Pages**를 실행하고 성공한 배포 주소를 확인합니다.
-4. 휴대폰으로 실제 배포 주소를 열어 일지 저장·재접속을 확인합니다.
-5. 아이폰은 Safari의 공유 → 홈 화면에 추가, 안드로이드는 Chrome 메뉴 → 앱 설치/홈 화면에 추가로 설치합니다.
-
-현재 환경에서는 GitHub Pages API 요청이 Forbidden으로 거부되어 배포하지 않았습니다. 배포 주소와 실기기 설치는 아직 검증하지 않았습니다. 환경 설정의 Publish는 웹사이트 배포와 다릅니다.
+다른 저장소에서 GitHub Actions 방식으로 배포할 경우 `.github/workflows/pages.yml`을 사용하고 Settings → Pages → Source를 GitHub Actions로 선택하세요. 별도 빌드나 API 키는 필요 없습니다. 아이폰은 Safari 공유 → 홈 화면에 추가로 설치합니다.
 
 HTTPS(또는 개발용 localhost)가 있어야 서비스 워커/오프라인 기능을 사용할 수 있습니다. 업데이트가 제공되면 기존 앱 창들을 닫고 다시 열어 새 버전을 적용합니다. 앱 업데이트 시 `sw.js`의 캐시 버전도 변경해야 합니다.
 
@@ -86,3 +80,11 @@ Tesseract.js 7.0.0, tesseract.js-core 7.0.0 및 공식 tessdata_fast 한국어·
 ## 근무 날짜 (버전 2.1)
 
 한국 시간 새벽 00:00~05:59에 시작하는 새 일지는 전날을 근무 시작 날짜로 기본 설정합니다. 06:00부터 당일로 바뀝니다. 실제 출근 날짜가 다르면 직접 변경할 수 있습니다. 귀가 날짜와 상단 현재 날짜는 실제 한국 날짜를 사용합니다. 월 수익과 남은 근무 계획도 이 근무 기준일의 월을 사용하므로 월말 밤의 근무가 다음 달로 넘어가지 않습니다. 기존 저장된 일지와 작성 중인 내용이 있는 초안의 날짜는 자동 변경하지 않습니다. 날짜 외 입력이 없는 빈 초안만 새 기본 날짜를 사용합니다.
+
+## 지난 일지와 수익 그래프 (버전 2.2)
+
+일지 쓰기 맨 위에서 실제 근무 시작 날짜를 고릅니다. 지난달 근무도 입력할 수 있으며, 새벽 귀가 날짜는 출근·귀가 시간을 입력하면 다음 날로 계산합니다. 직접 선택한 날짜는 빈 초안 상태에서도 유지합니다. 내역에서 월 → 달력 날짜 → 선택한 날짜 일지 쓰기로도 추가할 수 있습니다. 기록한 날짜는 기존 일지 수정으로 열리고, 다른 초안을 불러오거나 기존 일지를 교체하기 전에 작성 중인 내용을 확인합니다. 지난 근무를 저장하면 해당 월의 내역을 보여줍니다.
+
+내역의 그래프는 조회 월 전체 기록을 기준으로 순수익을 합산합니다. 월 누적 순수익 그래프의 목표는 현재 설정한 월 목표이며 과거 목표의 기록은 아닙니다. 미기록 구간은 이전 누적액을 점선으로 유지하고 미래 수입은 추정하지 않습니다. 하루 순수익 막대는 날짜순이며 음수·저장된 0원·미기록 날짜를 구분합니다. 막대를 누르면 해당 날짜 일지로 필터링합니다.
+
+`TEST_URL=http://127.0.0.1:8007/ node tests/backdating.cjs`는 지난 날짜 초안, 지난달 야간 근무, 달력 추가, 그래프 합산·순서·음수·0원, 날짜별 수정, 초안 보호, 모바일 너비 및 오프라인 그래프를 검증합니다.

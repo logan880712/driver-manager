@@ -8,3 +8,5 @@ label{font-size:13px}.help{font-size:12px}.page-heading p{font-size:14px}.metric
 #notice[data-kind=error]{background:#fff4e9;border-color:#edd7be;color:#956339}
 
 .page-heading .shift-date{margin-top:12px;font-size:11px;line-height:1.8}.shift-date b{color:#376b4f}
+
+.work-date-panel>label{display:grid;gap:8px;font-size:13px;font-weight:700}.work-date-panel input{min-width:0;width:100%}.date-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0}.date-shortcuts button{padding:10px 14px;min-height:42px}.date-shortcuts span{font-size:11px;color:var(--muted)}.work-date-panel .help{margin-bottom:0}.history-add{margin:0 0 18px;width:100%}

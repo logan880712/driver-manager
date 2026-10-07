@@ -1,5 +1,5 @@
-const CACHE = 'driver-diary-v7';
-const ASSETS = ['./', './index.html', './style.css', './app.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './photo-parser.js', './photo-ocr.js', './vendor/ocr/tesseract.min.js', './vendor/ocr/worker.min.js', './vendor/ocr/tesseract-core-lstm.wasm.js', './vendor/ocr/kor.traineddata.gz', './vendor/ocr/eng.traineddata.gz'];
+const CACHE = 'driver-diary-v8';
+const ASSETS = ['./', './index.html', './style.css', './charts.css', './income-charts.js', './app.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './photo-parser.js', './photo-ocr.js', './vendor/ocr/tesseract.min.js', './vendor/ocr/worker.min.js', './vendor/ocr/tesseract-core-lstm.wasm.js', './vendor/ocr/kor.traineddata.gz', './vendor/ocr/eng.traineddata.gz'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('driver-diary-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', event => {
