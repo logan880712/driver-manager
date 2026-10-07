@@ -13,4 +13,7 @@ const duplicates=deduplicate([...first.records,...list.records,...parse(detailed
 const overlap=deduplicate([first.records[0],{...first.records[0],rideId:''}]);assert.equal(overlap[1].duplicate,true);
 const distinct=deduplicate([{amount:24000,start:'00:59',end:'01:45'},{amount:24000,start:'02:00',end:'02:40'}]);assert.equal(distinct.filter(r=>r.selected).length,2);
 assert.equal(parse('운행시간 20:58 ~ 21:38\n종 수입 30,400원').records[0].amount,30400);
+assert.equal(parse('실수윅 16,000P').records[0].amount,16000);
+assert.equal(parse('실수익 24.000P').records[0].amount,24000);
+assert.equal(parse('실수익 16, OOO P').records[0].amount,16000);
 console.log('PASS: 상세/목록/줄바꿈 금액, 단위 오인 경고, 현금 제외, 실패 항목 방어, 중복 후보, 다른 운행 구분');

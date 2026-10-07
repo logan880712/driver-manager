@@ -7,18 +7,19 @@
     let previous=0;
     for(let i=0;i<lines.length;i++){
       const compact=lines[i].replace(/\s/g,'');
-      if(!/(?:실수익|[총종]수입)/.test(compact))continue;
-      const label=lines[i].match(/실\s*수\s*익|[총종]\s*수\s*입/);
+      if(!/(?:실수[익윅입]|[총종]수입)/.test(compact))continue;
+      const label=lines[i].match(/실\s*수\s*[익윅입]|[총종]\s*수\s*입/);
       if(!label)continue;
       let valueText=lines[i].slice(label.index+label[0].length);
       if(!/\d/.test(valueText)){
         const next=lines[i+1]||'';
         if(/^[\s_:：]*\d/.test(next))valueText=next;
       }
+      valueText=valueText.replace(/(?<=[0-9])[.,]\s*(?=[0-9OoOＯ]{3}(?:[^0-9]|$))/g,',').replace(/[OoＯ]/g,'0').replace(/(?<=,)\s+/g,'');
       // OCR sometimes reads the unit P as 2; keep the comma-grouped amount and flag its unit.
       const match=valueText.match(/\d{1,3}(?:,\d{3})+|\d{4,8}/);
       if(!match){warnings.push(`사진 ${photoIndex+1}: 수익 항목의 금액을 읽지 못했습니다.`);continue;}
-      if (label[0].startsWith('종')) warnings.push(`사진 ${photoIndex+1}: '총 수입' 글자가 불명확해 인식 금액을 확인해야 합니다.`);
+      if (label[0].startsWith('종') || /[윅입]/.test(label[0].replace(/[총종]\s*수\s*입/,''))) warnings.push(`사진 ${photoIndex+1}: 수익 항목 글자가 불명확해 인식 금액을 확인해야 합니다.`);
       const amount=Number(match[0].replace(/,/g,''));
       if(!Number.isSafeInteger(amount)||amount<=0||amount>100000000){warnings.push(`사진 ${photoIndex+1}: 수익 금액을 확인해 주세요.`);continue;}
       const context=lines.slice(previous,i+1).join('\n');
