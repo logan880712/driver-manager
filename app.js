@@ -9,13 +9,28 @@ const amount = n => Number.isSafeInteger(n) && n >= 0 && n <= 100000000;
 function validDate(value) { if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const date = new Date(value+'T00:00:00Z'); return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10) === value; }
 const validTime = t => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 const duration = d => (new Date(`${d.endDate}T${d.end}:00Z`) - new Date(`${d.date}T${d.start}:00Z`)) / 60000;
+function diaryError(d) {
+  if (!validDate(d.date)) return { field:'date', message:'근무 시작 날짜를 확인해 주세요.' };
+  if (!validDate(d.endDate)) return { field:'endDate', message:'귀가한 날짜를 확인해 주세요.' };
+  if (!validTime(d.start)) return { field:'start', message:'출근 시간을 확인해 주세요.' };
+  if (!validTime(d.end)) return { field:'end', message:'귀가 시간을 확인해 주세요.' };
+  if (duration(d) <= 0) return { field:'endDate', message:'귀가가 출근보다 빠르거나 같습니다. 새벽에 귀가했다면 귀가한 날짜를 다음 날로 선택해 주세요.' };
+  if (duration(d) > 1440) return { field:'endDate', message:'근무시간이 24시간을 넘습니다. 근무 시작 날짜와 귀가한 날짜를 확인해 주세요.' };
+  if (!Number.isInteger(d.count) || d.count < 0 || d.count > 1000) return { field:'count', message:'운행 건수는 0~1,000 사이의 정수로 입력해 주세요.' };
+  const labels={income:'운행 수익',tips:'추가 팁',transport:'택시·교통비',expense:'기타 지출'};
+  for (const [field,label] of Object.entries(labels)) if (!amount(d[field])) return { field, message:`${label}은 0~1억 원 사이의 정수로 입력해 주세요.` };
+  if (!['1','2','3'].includes(d.fatigue)) return { field:'fatigue', message:'피로도를 선택해 주세요.' };
+  if (typeof d.memo !== 'string' || d.memo.length > 1000) return { field:'memo', message:'메모는 1,000자 이내로 입력해 주세요.' };
+  if (!Array.isArray(d.photos) || d.photos.length>5 || d.photos.some(p=>!p || typeof p.name!=='string' || p.name.length>255 || typeof p.data!=='string' || p.data.length>7100000 || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(p.data))) return { field:'photos', message:'첨부 사진을 확인해 주세요. JPG·PNG·WebP, 최대 5장, 장당 5MB까지 지원합니다.' };
+  return null;
+}
 function validState(s) {
   return s && s.version === 2 && s.goals && amount(s.goals.daily) && s.goals.daily > 0 && amount(s.goals.monthly) && s.goals.monthly > 0
     && Array.isArray(s.workdays) && new Set(s.workdays).size === s.workdays.length && s.workdays.every(d=>Number.isInteger(d)&&d>=0&&d<=6)
     && typeof s.home === 'string' && s.home.trim().length > 0 && s.home.length <= 80 && validTime(s.deadline)
     && ['skipDates','extraDates'].every(k=>Array.isArray(s[k])&&s[k].length<=1000&&s[k].every(validDate))
     && Array.isArray(s.diaries) && s.diaries.length <= 10000 && new Set(s.diaries.map(d=>d.date)).size === s.diaries.length
-    && s.diaries.every(d=>d && validDate(d.date) && validDate(d.endDate) && validTime(d.start) && validTime(d.end) && duration(d)>0 && duration(d)<=1440 && Number.isInteger(d.count) && d.count>=0 && d.count<=1000 && ['income','tips','transport','expense'].every(k=>amount(d[k])) && ['1','2','3'].includes(d.fatigue) && typeof d.memo==='string' && d.memo.length<=1000 && Array.isArray(d.photos) && d.photos.length<=5 && d.photos.every(p=>p && typeof p.name==='string' && p.name.length<=255 && typeof p.data==='string' && p.data.length<=7100000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(p.data)))
+    && s.diaries.every(d=>d && !diaryError(d))
     && Array.isArray(s.rides) && s.rides.length<=100000 && new Set(s.rides.map(r=>r.id)).size===s.rides.length && s.rides.every(r=>r && typeof r.id==='string' && validDate(r.date) && ['fare','fee','expense'].every(k=>amount(r[k])) && r.fare>0 && ['from','to'].every(k=>typeof r[k]==='string' && r[k].length<=80) && typeof r.memo==='string' && r.memo.length<=200);
 }
 function migrate(s) {
@@ -92,15 +107,20 @@ function renderHistory(){
   }
 }
 const diaryForm=$('diary-form');
-function resetDiary(){diaryForm.reset();$('diary-date').value=today();$('end-date').value=today();$('photos').value='';$('photo-preview').replaceChildren();updatePreview();}
-function loadDiary(d){for(const [key,value]of Object.entries(d)){const input=diaryForm.elements.namedItem(key);if(input && input.type!=='file')input.value=value;}$('photos').value='';showPhotos($('photo-preview'),d.photos);updatePreview();}
+let manualEndDate=false;
+function nextDate(date){const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);}
+function inferEndDate(){const date=$('diary-date').value,start=diaryForm.elements.start.value,end=diaryForm.elements.end.value;if(!manualEndDate && validDate(date) && validTime(start) && validTime(end)){$('end-date').value=end<start?nextDate(date):date;$('date-hint').textContent=end<start?'새벽 귀가로 귀가 날짜를 다음 날로 맞췄습니다.':'당일 귀가로 계산합니다.';}}
+for(const name of ['start','end'])diaryForm.elements.namedItem(name).addEventListener('input',inferEndDate);
+$('end-date').addEventListener('input',()=>{manualEndDate=true;$('date-hint').textContent='선택한 귀가 날짜로 계산합니다.';});
+function resetDiary(){manualEndDate=false;$('date-hint').textContent='새벽 귀가는 시간을 입력하면 다음 날로 자동 계산합니다.';diaryForm.reset();$('diary-date').value=today();$('end-date').value=today();$('photos').value='';$('photo-preview').replaceChildren();updatePreview();}
+function loadDiary(d){manualEndDate=true;$('date-hint').textContent='저장된 귀가 날짜입니다.';for(const [key,value]of Object.entries(d)){const input=diaryForm.elements.namedItem(key);if(input && input.type!=='file')input.value=value;}$('photos').value='';showPhotos($('photo-preview'),d.photos);updatePreview();}
 function updatePreview(){const v=Object.fromEntries(new FormData(diaryForm));$('diary-preview').textContent=`순수익 ${money(Number(v.income||0)+Number(v.tips||0)-Number(v.transport||0)-Number(v.expense||0))}`;}
 diaryForm.addEventListener('input',updatePreview);
-$('diary-date').addEventListener('change',()=>{const d=state.diaries.find(d=>d.date===$('diary-date').value);if(d)loadDiary(d);else{$('end-date').value=$('diary-date').value;$('photos').value='';$('photo-preview').replaceChildren();}});
+$('diary-date').addEventListener('change',()=>{const d=state.diaries.find(d=>d.date===$('diary-date').value);if(d)loadDiary(d);else{manualEndDate=false;$('end-date').value=$('diary-date').value;inferEndDate();}});
 $('reset-diary').onclick=resetDiary;
 async function readPhotos(files){if(files.length>5)throw Error('사진은 최대 5장까지 첨부할 수 있습니다.');return Promise.all([...files].map(file=>{if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024)throw Error('사진은 JPG·PNG·WebP, 장당 5MB 이하로 선택하세요.');return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,data:reader.result});reader.onerror=()=>reject(Error('사진을 읽지 못했습니다.'));reader.readAsDataURL(file);});}));}
 $('photos').addEventListener('change',async()=>{try{showPhotos($('photo-preview'),await readPhotos($('photos').files));}catch(e){$('photos').value='';notify(e.message);}});
-diaryForm.addEventListener('submit',async event=>{event.preventDefault();const values=Object.fromEntries(new FormData(diaryForm));const old=state.diaries.find(d=>d.date===values.date);try{const photos=$('photos').files.length?await readPhotos($('photos').files):old?.photos??[];const d={...values,photos};for(const key of ['count','income','tips','transport','expense'])d[key]=Number(d[key]);if(await save({...state,diaries:[...state.diaries.filter(x=>x.date!==d.date),d]})){resetDiary();notify('하루 일지를 저장했습니다. 목표 피드백을 확인해 보세요.');view('home');}}catch(e){notify(e.message);}});
+diaryForm.addEventListener('submit',async event=>{event.preventDefault();inferEndDate();const values=Object.fromEntries(new FormData(diaryForm));const old=state.diaries.find(d=>d.date===values.date);try{const photos=$('photos').files.length?await readPhotos($('photos').files):old?.photos??[];const d={...values,photos};for(const key of ['count','income','tips','transport','expense'])d[key]=Number(d[key]);const issue=diaryError(d);if(issue){notify(issue.message);const input=diaryForm.elements.namedItem(issue.field);input?.focus();input?.scrollIntoView({block:'center',behavior:'smooth'});return;}if(await save({...state,diaries:[...state.diaries.filter(x=>x.date!==d.date),d]})){resetDiary();notify('하루 일지를 저장했습니다. 목표 피드백을 확인해 보세요.');view('home');}}catch(e){notify(e.message);}});
 $('history-month').value=today().slice(0,7);$('history-month').onchange=renderHistory;
 $('goal-form').onsubmit=async event=>{event.preventDefault();const dates=id=>$(id).value.split(',').map(v=>v.trim()).filter(Boolean);const skipDates=dates('skip-dates'),extraDates=dates('extra-dates');if(![...skipDates,...extraDates].every(validDate)){notify('날짜는 2026-10-13 같은 형식으로 쉼표로 구분해 주세요.');return;}if(await save({...state,goals:{daily:Number($('daily-goal').value),monthly:Number($('monthly-goal').value)},workdays:[...document.querySelectorAll('[name=workday]:checked')].map(i=>Number(i.value)),home:$('home-location').value.trim(),deadline:$('deadline').value,skipDates,extraDates}))notify('목표와 근무 계획을 저장했습니다.');};
 $('export').onclick=()=>{if(!ready){notify('저장소를 먼저 확인해 주세요.');return;}const url=URL.createObjectURL(new Blob([JSON.stringify(state)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download=`대리일지-${today()}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('사진을 포함한 백업 파일을 내려받았습니다. 안전한 곳에 보관하세요.');};

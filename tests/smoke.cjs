@@ -10,7 +10,8 @@ const assert = require('node:assert/strict');
  assert.equal(await page.locator('#monthly-goal').inputValue(),'2500000');
  await page.locator('.bottom-nav [data-view=diary]').click();
  const values={date:'2026-10-06',start:'19:42',end:'01:45',endDate:'2026-10-07',count:'5',income:'123200',tips:'20000',transport:'18000',expense:'0',memo:'군포역 귀가'};
- for(const [key,value]of Object.entries(values))await page.locator(`#diary-form [name=${key}]`).fill(value);
+ for(const [key,value]of Object.entries(values)){if(key==='endDate')continue;await page.locator(`#diary-form [name=${key}]`).fill(value);}
+ assert.equal(await page.locator('#end-date').inputValue(),'2026-10-07','overnight date automatically advances');
  await page.locator('#photos').setInputFiles('icon-192.png');
  assert.equal(await page.locator('#diary-preview').textContent(),'순수익 125,200원');
  await page.locator('#diary-form [type=submit]').click();await page.waitForFunction(()=>state.diaries.length===1);
@@ -23,7 +24,7 @@ const assert = require('node:assert/strict');
  assert.equal(await page.evaluate(()=>state.diaries.length),1);assert.equal(await page.evaluate(()=>state.diaries[0].photos.length),1);
  console.log('edit checked');
  // Invalid end date must not overwrite a saved diary.
- await page.locator('.bottom-nav [data-view=diary]').click();await page.locator('#diary-date').fill('2026-10-06');await page.locator('#diary-date').dispatchEvent('change');await page.locator('#end-date').fill('2026-10-05');await page.locator('#diary-form [type=submit]').click();assert.equal(await page.evaluate(()=>state.diaries[0].endDate),'2026-10-07');
+ await page.locator('.bottom-nav [data-view=diary]').click();await page.locator('#diary-date').fill('2026-10-06');await page.locator('#diary-date').dispatchEvent('change');await page.locator('#end-date').fill('2026-10-05');await page.locator('#diary-form [type=submit]').click();assert.equal(await page.evaluate(()=>state.diaries[0].endDate),'2026-10-07');assert.match(await page.locator('#notice').textContent(),/귀가가 출근보다/);assert.equal(await page.locator('#diary-form [name=tips]').inputValue(),'25000');
  await page.locator('.bottom-nav [data-view=settings]').click();
  const download=page.waitForEvent('download');await page.locator('#export').click();const file=await download;const path=await file.path();const backup=JSON.parse(require('node:fs').readFileSync(path,'utf8'));assert.equal(backup.diaries[0].photos.length,1);
  page.on('dialog',d=>d.accept());await page.locator('#import').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"version":2}')});await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('백업을 읽지'));assert.equal(await page.evaluate(()=>state.diaries.length),1);
