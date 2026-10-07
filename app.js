@@ -1,4 +1,6 @@
 'use strict';
+// An overnight driving shift belongs to the evening it started, until 06:00 KST.
+function workDate(at=new Date()){const date=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(at);const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Seoul',hour:'2-digit',hourCycle:'h23'}).format(at));if(hour>=6)return date;const previous=new Date(date+'T00:00:00Z');previous.setUTCDate(previous.getUTCDate()-1);return previous.toISOString().slice(0,10);}
 const $ = id => document.getElementById(id);
 const money = n => `${Math.round(n).toLocaleString('ko-KR')}원`;
 const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date());
@@ -63,7 +65,7 @@ function view(name) {
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.view)));
 function render() {
-  const date=today(), month=date.slice(0,7), items=records().filter(r=>r.date.startsWith(month));
+  const date=workDate(), month=date.slice(0,7), items=records().filter(r=>r.date.startsWith(month));
   $('header-date').textContent=new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',weekday:'short'}).format(new Date());
   $('home-month').textContent=`${date.slice(0,4)}년 ${Number(date.slice(5,7))}월`;
   const income=total(items), days=new Set(items.map(r=>r.date)).size, remaining=Math.max(0,state.goals.monthly-income);
@@ -134,16 +136,16 @@ function nextDate(date){const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUT
 function inferEndDate(){const date=$('diary-date').value,start=diaryForm.elements.start.value,end=diaryForm.elements.end.value;if(!manualEndDate && validDate(date) && validTime(start) && validTime(end)){$('end-date').value=end<start?nextDate(date):date;$('date-hint').textContent=end<start?'새벽 귀가로 귀가 날짜를 다음 날로 맞췄습니다.':'당일 귀가로 계산합니다.';}}
 for(const name of ['start','end'])diaryForm.elements.namedItem(name).addEventListener('input',inferEndDate);
 $('end-date').addEventListener('input',()=>{manualEndDate=true;$('date-hint').textContent='선택한 귀가 날짜로 계산합니다.';});
-function resetDiary(discardDraft=true){if(discardDraft)clearDraft();selectedPhotos=null;window.PhotoImport?.clear();manualEndDate=false;$('date-hint').textContent='새벽 귀가는 시간을 입력하면 다음 날로 자동 계산합니다.';diaryForm.reset();$('diary-date').value=today();$('end-date').value=today();$('photos').value='';showPhotos($('photo-preview'),[]);updatePreview();}
+function resetDiary(discardDraft=true){if(discardDraft)clearDraft();selectedPhotos=null;window.PhotoImport?.clear();manualEndDate=false;$('date-hint').textContent='새벽 귀가는 시간을 입력하면 다음 날로 자동 계산합니다.';diaryForm.reset();$('diary-date').value=workDate();$('end-date').value=today();$('photos').value='';showPhotos($('photo-preview'),[]);updatePreview();}
 function loadDiary(d){clearTimeout(draftTimer);selectedPhotos=d.photos;window.PhotoImport?.clear();manualEndDate=true;$('date-hint').textContent='저장된 귀가 날짜입니다.';for(const [key,value]of Object.entries(d)){const input=diaryForm.elements.namedItem(key);if(input && input.type!=='file')input.value=value;}$('photos').value='';showPhotos($('photo-preview'),d.photos);updatePreview();}
-function updatePreview(){const v=Object.fromEntries(new FormData(diaryForm));$('diary-preview').textContent=money(Number(v.income||0)+Number(v.tips||0)-Number(v.transport||0)-Number(v.expense||0));}
+function updatePreview(){const v=Object.fromEntries(new FormData(diaryForm));if($('shift-date-label'))$('shift-date-label').textContent=validDate(v.date)?`근무일 ${Number(v.date.slice(5,7))}월 ${Number(v.date.slice(8))}일`:'근무 날짜를 선택해 주세요';$('diary-preview').textContent=money(Number(v.income||0)+Number(v.tips||0)-Number(v.transport||0)-Number(v.expense||0));}
 diaryForm.addEventListener('input',()=>{updatePreview();queueDraft();});
 $('diary-date').addEventListener('change',()=>{const d=state.diaries.find(d=>d.date===$('diary-date').value);if(d)loadDiary(d);else{manualEndDate=false;$('end-date').value=$('diary-date').value;inferEndDate();}});
 $('reset-diary').onclick=()=>resetDiary();
 async function readPhotos(files){if(files.length>5)throw Error('사진은 최대 5장까지 첨부할 수 있습니다.');return Promise.all([...files].map(file=>{if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024)throw Error('사진은 JPG·PNG·WebP, 장당 5MB 이하로 선택하세요.');return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,data:reader.result});reader.onerror=()=>reject(Error('사진을 읽지 못했습니다.'));reader.readAsDataURL(file);});}));}
 $('photos').addEventListener('change',async()=>{try{selectedPhotos=await readPhotos($('photos').files);showPhotos($('photo-preview'),selectedPhotos);queueDraft();}catch(e){$('photos').value='';notify(e.message);}});
 diaryForm.addEventListener('submit',async event=>{event.preventDefault();if(window.PhotoImport?.busy){notify('사진 인식 중입니다. 완료를 기다리거나 인식 중단을 눌러 직접 입력해 주세요.');return;}inferEndDate();const values=Object.fromEntries(new FormData(diaryForm));const old=state.diaries.find(d=>d.date===values.date);try{const photos=selectedPhotos??old?.photos??[];const d={...values,photos};for(const key of ['count','income','tips','transport','expense'])d[key]=Number(d[key]);const issue=diaryError(d);if(issue){notify(issue.message,'error');const input=diaryForm.elements.namedItem(issue.field);input?.focus();input?.scrollIntoView({block:'center',behavior:'smooth'});return;}if(await save({...state,diaries:[...state.diaries.filter(x=>x.date!==d.date),d]})){resetDiary();notify('하루 일지를 저장했습니다. 목표 피드백을 확인해 보세요.');view('home');}}catch(e){notify(e.message);}});
-$('history-month').value=today().slice(0,7);$('history-month').onchange=()=>{historyDateFilter='';renderHistory();};
+$('history-month').value=workDate().slice(0,7);$('history-month').onchange=()=>{historyDateFilter='';renderHistory();};
 $('goal-form').onsubmit=async event=>{event.preventDefault();const dates=id=>$(id).value.split(',').map(v=>v.trim()).filter(Boolean);const skipDates=dates('skip-dates'),extraDates=dates('extra-dates');if(![...skipDates,...extraDates].every(validDate)){notify('날짜는 2026-10-13 같은 형식으로 쉼표로 구분해 주세요.');return;}if(await save({...state,goals:{daily:Number($('daily-goal').value),monthly:Number($('monthly-goal').value)},workdays:[...document.querySelectorAll('[name=workday]:checked')].map(i=>Number(i.value)),home:$('home-location').value.trim(),deadline:$('deadline').value,skipDates,extraDates}))notify('목표와 근무 계획을 저장했습니다.');};
 $('export').onclick=()=>{if(!ready){notify('저장소를 먼저 확인해 주세요.');return;}const url=URL.createObjectURL(new Blob([JSON.stringify(state)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download=`대리일지-${today()}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('사진을 포함한 백업 파일을 내려받았습니다. 안전한 곳에 보관하세요.');};
 $('import').onchange=async event=>{const file=event.target.files[0];if(!file)return;try{if(file.size>100*1024*1024)throw Error('백업 파일은 100MB 이하만 지원합니다.');const data=migrate(JSON.parse(await file.text()));if(confirm('현재 기록·사진·설정을 백업 내용으로 교체할까요? 먼저 현재 기록을 백업해 주세요.')){if(await save(data)){resetDiary();notify('백업을 복원했습니다.');}}}catch(e){notify('백업을 읽지 못했습니다. 올바른 파일과 용량을 확인해 주세요. 기존 기록은 유지됩니다.');}finally{event.target.value='';}};
@@ -165,6 +167,7 @@ async function restoreDraft(){
   for(const k of draftFields)diaryForm.elements.namedItem(k).value=source.values[k];
   const photos=Array.isArray(draft?.photos)&&draft.photos.length<=5?draft.photos:[];
   selectedPhotos=photos.filter(p=>p&&typeof p.name==='string'&&p.name.length<=255&&typeof p.data==='string'&&p.data.length<=7100000&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(p.data));
+  if(!source.values.count&&!source.values.income&&!source.values.start&&!source.values.end&&!source.values.memo&&!selectedPhotos.length&&['tips','transport','expense'].every(k=>!Number(source.values[k]))&&source.values.fatigue==='1'){$('diary-date').value=workDate();$('end-date').value=today();}
   manualEndDate=!!source.manualEndDate;showPhotos($('photo-preview'),selectedPhotos);updatePreview();$('draft-status').textContent='이전에 작성하던 내용을 복원했어요.';
 }
 $('remove-photos').onclick=()=>{window.PhotoImport?.clear();selectedPhotos=[];$('photos').value='';showPhotos($('photo-preview'),[]);queueDraft();};

@@ -6,3 +6,5 @@ label{font-size:13px}.help{font-size:12px}.page-heading p{font-size:14px}.metric
 .draft-strip,.metric>small,.field-grid small,.ocr-panel small{color:#718275}.bottom-nav button{color:#728374}.bottom-nav button[aria-current]{color:#295940}
 
 #notice[data-kind=error]{background:#fff4e9;border-color:#edd7be;color:#956339}
+
+.page-heading .shift-date{margin-top:12px;font-size:11px;line-height:1.8}.shift-date b{color:#376b4f}
