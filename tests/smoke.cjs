@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
  for(const [key,value]of Object.entries(values)){if(key==='endDate')continue;await page.locator(`#diary-form [name=${key}]`).fill(value);}
  assert.equal(await page.locator('#end-date').inputValue(),'2026-10-07','overnight date automatically advances');
  await page.locator('#photos').setInputFiles('icon-192.png');await page.waitForFunction(()=>!window.PhotoImport.busy,{},{timeout:60000});
- assert.equal(await page.locator('#diary-preview').textContent(),'순수익 125,200원');
+ assert.equal(await page.locator('#diary-preview').textContent(),'125,200원');
  await page.locator('#diary-form [type=submit]').click();await page.waitForFunction(()=>state.diaries.length===1);
  assert.equal(await page.evaluate(()=>diaryNet(state.diaries[0])),125200);
  console.log('saved diary');await page.reload();await page.waitForFunction(()=>ready);assert.equal(await page.evaluate(()=>state.diaries[0].photos.length),1);
@@ -29,7 +29,7 @@ const assert = require('node:assert/strict');
  const download=page.waitForEvent('download');await page.locator('#export').click();const file=await download;const path=await file.path();const backup=JSON.parse(require('node:fs').readFileSync(path,'utf8'));assert.equal(backup.diaries[0].photos.length,1);
  page.on('dialog',d=>d.accept());await page.locator('#import').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"version":2}')});await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('백업을 읽지'));assert.equal(await page.evaluate(()=>state.diaries.length),1);
  await page.locator('#import').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('백업을 복원'));
- await page.locator('#skip-dates').fill('2026-10-08');await page.locator('#extra-dates').fill('2026-10-10');await page.locator('#goal-form [type=submit]').click();await page.waitForFunction(()=>state.skipDates.includes('2026-10-08'));
+ await page.locator('.schedule-details summary').click();await page.locator('#skip-dates').fill('2026-10-08');await page.locator('#extra-dates').fill('2026-10-10');await page.locator('#goal-form [type=submit]').click();await page.waitForFunction(()=>state.skipDates.includes('2026-10-08'));
  // Diary aggregate replaces legacy rides on the same date.
  assert.equal(await page.evaluate(()=>{state.rides=[{id:'test',date:'2026-10-06',fare:50000,fee:0,expense:0,from:'A',to:'B',memo:''}];return total(records());}),130200);
  // Deterministic October 7 plan: skip Oct 8, add Oct 10 => 8 short / 7 long.

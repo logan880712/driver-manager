@@ -16,4 +16,7 @@ assert.equal(parse('운행시간 20:58 ~ 21:38\n종 수입 30,400원').records[0
 assert.equal(parse('실수윅 16,000P').records[0].amount,16000);
 assert.equal(parse('실수익 24.000P').records[0].amount,24000);
 assert.equal(parse('실수익 16, OOO P').records[0].amount,16000);
+const partial=parse('운행시간 20:58 ~ 21:38\n총 수입 30,400원\n운행시간 23:46 ~ 00:24\n총 수입 unreadable');assert.equal(partial.unresolved,1);assert.equal(partial.expected,2);
+assert.equal(deduplicate([{amount:24000,start:'00:59',end:'01:45',date:'2026-10-06'},{amount:24000,start:'00:59',end:'01:45',date:'2026-10-07'}]).filter(r=>r.selected).length,2);
+assert.equal(deduplicate([{amount:24000},{amount:24000,photoDuplicate:true}]).filter(r=>r.selected).length,1);
 console.log('PASS: 상세/목록/줄바꿈 금액, 단위 오인 경고, 현금 제외, 실패 항목 방어, 중복 후보, 다른 운행 구분');
