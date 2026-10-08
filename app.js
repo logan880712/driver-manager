@@ -209,4 +209,25 @@ let installPrompt;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('install').hidden=false;});$('install').onclick=async()=>{if(installPrompt){await installPrompt.prompt();installPrompt=null;$('install').hidden=true;}};
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>notify('오프라인 기능을 시작하지 못했습니다. HTTPS 접속 여부를 확인하세요.'));
 async function init(){try{db=await new Promise((resolve,reject)=>{const request=indexedDB.open('driver-diary',1);request.onupgradeneeded=()=>request.result.createObjectStore('data');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);request.onblocked=()=>reject(Error('blocked'));});const saved=await new Promise((resolve,reject)=>{const tx=db.transaction('data','readonly'),request=tx.objectStore('data').get('state');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});if(saved)state=migrate(saved);else{const old=localStorage.getItem('driver-manager-v1');state=old?migrate(JSON.parse(old)):defaults();await writeState(state);}await restoreDraft().catch(()=>{$('draft-status').textContent='작성 중인 내용을 복원하지 못했지만 저장된 일지는 유지됩니다.';});ready=true;render();}catch{notify('저장소를 읽을 수 없어 저장을 중단했습니다. 기존 데이터는 덮어쓰지 않았습니다. 브라우저 저장 설정을 확인하세요.');}}
+// Holiday shortcut: uses the existing skipDates setting and IndexedDB save path.
+const holidayButton=$('holiday-toggle');
+function refreshHolidayButton(){
+  const date=workDate(),isOff=state.skipDates.includes(date);
+  holidayButton.textContent=isOff?'휴무 취소':'오늘 휴무 설정';
+  holidayButton.setAttribute('aria-pressed',String(isOff));
+  holidayButton.classList.toggle('is-off',isOff);
+  $('holiday-description').textContent=isOff?'오늘은 휴무로 설정됐어요. 푹 쉬세요.':'휴무를 설정하면 남은 근무 목표에 반영돼요.';
+}
+holidayButton.addEventListener('click',async()=>{
+  if(!ready){notify('저장소를 확인하는 중입니다. 잠시 후 다시 눌러 주세요.');return;}
+  if(saving)return;
+  const date=workDate(),isOff=state.skipDates.includes(date);
+  holidayButton.disabled=true;
+  try{
+    const skipDates=isOff?state.skipDates.filter(d=>d!==date):[...state.skipDates,date];
+    if(await save({...state,skipDates})){refreshHolidayButton();notify(isOff?'오늘 휴무를 취소했습니다.':'오늘을 휴무로 설정했습니다. 푹 쉬세요!');}
+  }finally{holidayButton.disabled=false;}
+});
+const originalRender=render;
+render=function(){originalRender();refreshHolidayButton();};
 resetDiary(false);render();init();
