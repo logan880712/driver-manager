@@ -210,6 +210,21 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installProm
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>notify('오프라인 기능을 시작하지 못했습니다. HTTPS 접속 여부를 확인하세요.'));
 async function init(){try{db=await new Promise((resolve,reject)=>{const request=indexedDB.open('driver-diary',1);request.onupgradeneeded=()=>request.result.createObjectStore('data');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);request.onblocked=()=>reject(Error('blocked'));});const saved=await new Promise((resolve,reject)=>{const tx=db.transaction('data','readonly'),request=tx.objectStore('data').get('state');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});if(saved)state=migrate(saved);else{const old=localStorage.getItem('driver-manager-v1');state=old?migrate(JSON.parse(old)):defaults();await writeState(state);}await restoreDraft().catch(()=>{$('draft-status').textContent='작성 중인 내용을 복원하지 못했지만 저장된 일지는 유지됩니다.';});ready=true;render();}catch{notify('저장소를 읽을 수 없어 저장을 중단했습니다. 기존 데이터는 덮어쓰지 않았습니다. 브라우저 저장 설정을 확인하세요.');}}
 // Holiday shortcut: uses the existing skipDates setting and IndexedDB save path.
+// Daily encouragement is local-only; it never changes saved diaries or settings.
+const hopeQuotes=[
+'오늘의 작은 걸음이 내일의 큰 힘이 됩니다.',
+'서두르지 않아도 괜찮아요. 꾸준함이 길을 만듭니다.',
+'안전하게 돌아오는 하루가 가장 값진 성과입니다.',
+'어제보다 한 걸음 나아간 오늘이면 충분합니다.',
+'힘든 밤이 지나면 새로운 아침이 찾아옵니다.',
+'작은 노력들이 모여 큰 변화를 만듭니다.',
+'오늘도 스스로에게 따뜻한 응원을 보내세요.'
+];
+function showDailyHope(){
+  const date=today(),index=Math.floor(Date.parse(date+'T00:00:00Z')/86400000)%hopeQuotes.length;
+  $('hope-quote').textContent=hopeQuotes[index];
+}
+showDailyHope();
 const holidayButton=$('holiday-toggle');
 function refreshHolidayButton(){
   const date=workDate(),isOff=state.skipDates.includes(date);
