@@ -10,3 +10,22 @@ label{font-size:13px}.help{font-size:12px}.page-heading p{font-size:14px}.metric
 .page-heading .shift-date{margin-top:12px;font-size:11px;line-height:1.8}.shift-date b{color:#376b4f}
 
 .work-date-panel>label{display:grid;gap:8px;font-size:13px;font-weight:700}.work-date-panel input{min-width:0;width:100%}.date-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0}.date-shortcuts button{padding:10px 14px;min-height:42px}.date-shortcuts span{font-size:11px;color:var(--muted)}.work-date-panel .help{margin-bottom:0}.history-add{margin:0 0 18px;width:100%}
+
+/* Calm night-drive refresh: purely visual, no stored data changes. */
+:root{--ink:#153e37;--green:#207e6c;--mint:#e8f5ef;--border:#dce9e3;--radius:22px}
+body{background:linear-gradient(180deg,#eef8f4 0,#f7faf8 370px,#f5f7f6 100%);}
+.primary{background:linear-gradient(135deg,#103b39,#23765e 85%);box-shadow:0 14px 35px rgba(17,71,59,.15)}
+.card,.panel{box-shadow:0 4px 18px rgba(21,62,55,.035)}
+.home-cta{background:linear-gradient(100deg,#d6f0d9,#e8f4cf)}
+.holiday-card{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid var(--border);border-radius:20px;padding:18px;margin:0 0 16px;box-shadow:0 4px 18px rgba(21,62,55,.04)}
+.holiday-card strong{font-size:14px;color:var(--ink)}
+.holiday-card p{font-size:11px;line-height:1.6;color:var(--muted);margin:7px 0 0}
+.holiday-button{flex-shrink:0;background:#e8f3ec;color:#155a47;font-size:12px;padding:12px;min-height:44px}
+.holiday-button:hover,.holiday-button.is-off{background:#155a47;color:white}
+.night-drive{height:66px;position:relative;overflow:hidden;border-radius:18px;margin:0 0 18px;background:linear-gradient(115deg,#e5f4f1,#d8e9e6)}
+.night-moon{position:absolute;right:24px;top:8px;color:#5d9e88;font-size:20px}
+.drive-road{position:absolute;bottom:13px;left:0;right:0;border-top:2px dashed #91b4a9}
+.drive-car{position:absolute;bottom:16px;left:0;font-size:30px;animation:nightDrive 9s linear infinite;filter:drop-shadow(0 3px 3px #7a9c9066)}
+@keyframes nightDrive{from{transform:translateX(-55px)}to{transform:translateX(min(800px, 110vw))}}
+@media(max-width:430px){.holiday-card{align-items:flex-start;flex-direction:column}.holiday-button{width:100%}}
+@media(prefers-reduced-motion:reduce){.drive-car{animation:none;left:45%}}
