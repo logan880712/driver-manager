@@ -37,7 +37,7 @@ const assert = require('node:assert/strict');
  const targets=await page.evaluate(()=>{render();return [document.getElementById('planned-days').textContent,document.getElementById('long-target').textContent];});
  assert.deepEqual(targets,['15일','224,258원']);
  for(const tab of ['home','diary','history','settings']){await page.locator(`.bottom-nav [data-view=${tab}]`).click();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,tab+' overflow');}
- await page.evaluate(()=>navigator.serviceWorker.ready);await page.reload();await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);await context.setOffline(true);console.log('saved diary');await page.reload();await page.waitForFunction(()=>ready);assert.equal(await page.locator('h1').textContent(),'나의 대리일지');await context.setOffline(false);
+ await page.evaluate(()=>navigator.serviceWorker.ready);await page.reload();await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);await context.setOffline(true);console.log('saved diary');await page.reload();await page.waitForFunction(()=>ready);assert.equal(await page.locator('h1').textContent(),'김정업 기사님의 대리일지');await context.setOffline(false);
  assert.deepEqual(errors,[]);
  // Old localStorage data migration uses a fresh browser context.
  const legacyContext=await browser.newContext();await legacyContext.addInitScript(()=>localStorage.setItem('driver-manager-v1',JSON.stringify({version:1,goals:{daily:100000,monthly:2500000},workdays:[2,3,4,5],rides:[{id:'old',date:'2026-10-06',fare:30000,fee:6000,expense:1000,from:'군포',to:'서울',memo:''}]})));

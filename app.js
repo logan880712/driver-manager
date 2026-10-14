@@ -28,6 +28,8 @@ function diaryError(d) {
   return null;
 }
 function validState(s) {
+  if(s?.planPreferences!==undefined&&!SchedulePlanner.validPreferences(s.planPreferences))return false;
+  if(s?.consultation!==undefined&&(!Array.isArray(s.consultation)||s.consultation.length>40||s.consultation.some(m=>!m||!['user','assistant'].includes(m.role)||typeof m.text!=='string'||m.text.length>4000)))return false;
   return s && s.version === 2 && s.goals && amount(s.goals.daily) && s.goals.daily > 0 && amount(s.goals.monthly) && s.goals.monthly > 0
     && Array.isArray(s.workdays) && new Set(s.workdays).size === s.workdays.length && s.workdays.every(d=>Number.isInteger(d)&&d>=0&&d<=6)
     && typeof s.home === 'string' && s.home.trim().length > 0 && s.home.length <= 80 && validTime(s.deadline)
@@ -94,6 +96,7 @@ function render() {
   $('assistant-basis').textContent=`오늘~월말의 미기록 예정일 기준입니다. 이미 기록한 날은 완료로 계산합니다. 추가 근무 추정은 ${average>0?`${days}일 평균 ${money(average)}`:`기록이 부족해 하루 목표 ${money(shortGoal)}`} 기준이며 수입을 보장하지 않습니다. 팁 ${money(tipTotal)}은 실제 누적에 포함되지만 앞으로의 팁은 보장되지 않아요. 하루 일지가 있는 날짜의 개별 운행은 중복 합산하지 않습니다.`;
   renderLatest();
   renderHistory();
+  if(typeof renderPlanning==='function')renderPlanning();
 }
 function textElement(tag,text,className){const el=document.createElement(tag);el.textContent=text;if(className)el.className=className;return el;}
 function showPhotos(container,photos){
@@ -228,10 +231,10 @@ showDailyHope();
 const holidayButton=$('holiday-toggle');
 function refreshHolidayButton(){
   const date=workDate(),isOff=state.skipDates.includes(date);
-  holidayButton.textContent=isOff?'휴무 취소':'오늘 휴무 설정';
+  holidayButton.textContent=isOff?'휴무 취소':'오늘은 휴무';
   holidayButton.setAttribute('aria-pressed',String(isOff));
   holidayButton.classList.toggle('is-off',isOff);
-  $('holiday-description').textContent=isOff?'오늘은 휴무로 설정됐어요. 푹 쉬세요.':'휴무를 설정하면 남은 근무 목표에 반영돼요.';
+  $('holiday-description').textContent=`${SchedulePlanner.label(date)} 근무 기준 · ${isOff?'휴무로 표시했어요. 쉬는 시간도 소중해요.':'휴무를 누르면 남은 계획에 반영돼요.'}${records().some(r=>r.date===date)?' 저장된 수익은 유지됩니다.':''}`;
 }
 holidayButton.addEventListener('click',async()=>{
   if(!ready){notify('저장소를 확인하는 중입니다. 잠시 후 다시 눌러 주세요.');return;}
